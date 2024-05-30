@@ -7,14 +7,16 @@ import { UA, CodigoValidacao } from './UsuarioAdministrativo.DAOclass.js'
 import { SenhaIncorreta, ServicoIndisponivel, UsuarioAdministrativoNaoEncontrado, CodigoInvalido, AdminNaoAceito, ViolacaoUnique } from './ErrorList.js'
 
 dotenv.config()
-const { PORT_SERVICE, JWT_UA_ACCESS_KEY, JWT_EXPIRATION_TIME, SALT_ROUNDS } = process.env
+//const { PORT_SERVICE, JWT_UA_ACCESS_KEY, JWT_EXPIRATION_TIME, SALT_ROUNDS } = process.env
+
+const PORT = process.env.PORT || 8080
+const JWT_UA_ACCESS_KEY = process.env.JWT_UA_ACCESS_KEY || 'access-key-to-server:UA'
+const JWT_EXPIRATION_TIME = process.env.JWT_EXPIRATION_TIME || '1h'
+const SALT_ROUNDS = process.env.SALT_ROUNDS || '10'
 
 const appServer = express()
 appServer.use(express.json())
 appServer.use(cors())
-
-await UA.sync()
-await CodigoValidacao.sync()
 
 const verificaAceitacaoAdmin = async (req: any, res: any, next: any) => {
     const { email_admin, codigo_validacao } = req.body
@@ -69,6 +71,7 @@ appServer.post('/cadastrar', verificaAceitacaoAdmin, async (req: any, res: any) 
     console.log("Requisição de Cadastro de Usuário Administrativo")
     const { email_admin, senha, nome_admin, cargo } = req.body
     try{
+        await UA.sync()
         let senhaHash: any, sucesso = false
         while(!sucesso){
             try{
@@ -107,6 +110,7 @@ appServer.get('/login', async (req: any, res: any) => {
     console.log("Requisição de Login de Usuário Administrativo")
     const { email_admin, senha } = req.query
     try{
+        await UA.sync()
         const usuarioA = await UA.findByPk(email_admin as string)
         if(usuarioA){
             const senhaDadaEstaCorreta = await bcrypt.compare(senha as string, usuarioA.getDataValue('senha'))
@@ -139,6 +143,7 @@ appServer.get('/login', async (req: any, res: any) => {
 appServer.get('/acessa-info', verificaToken, async (req: any, res: any) => {
     const { usuario } = req
     try {
+        await UA.sync()
         const infoUE = await UA.findByPk(usuario as string)
         if (infoUE) {
             res.status(200).json(infoUE);
@@ -155,6 +160,7 @@ appServer.get('/acessa-info', verificaToken, async (req: any, res: any) => {
 appServer.post('/aceitar-admin', async (req: any, res: any) => {
     const { email_admin, codigo_validacao } = req.body
     try{
+        await UA.sync()
         let codigoHash: any, sucesso = false
         while(!sucesso){
             try{
@@ -185,4 +191,4 @@ appServer.post('/aceitar-admin', async (req: any, res: any) => {
     }
 })
 
-appServer.listen(PORT_SERVICE, () => console.log(`Usuário Administrativo. Executando Porta ${PORT_SERVICE}`))
+appServer.listen(PORT, () => console.log(`Usuário Administrativo. Executando Porta ${PORT}`))
