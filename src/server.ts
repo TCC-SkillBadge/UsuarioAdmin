@@ -7,12 +7,8 @@ import { UA, CodigoValidacao } from './UsuarioAdministrativo.DAOclass.js'
 import { SenhaIncorreta, ServicoIndisponivel, UsuarioAdministrativoNaoEncontrado, CodigoInvalido, AdminNaoAceito, ViolacaoUnique } from './ErrorList.js'
 
 dotenv.config()
-//const { PORT_SERVICE, JWT_UA_ACCESS_KEY, JWT_EXPIRATION_TIME, SALT_ROUNDS } = process.env
-
-const PORT = process.env.PORT || 8080
-const JWT_UA_ACCESS_KEY = process.env.JWT_UA_ACCESS_KEY || 'access-key-to-server:UA'
-const JWT_EXPIRATION_TIME = process.env.JWT_EXPIRATION_TIME || '1h'
-const SALT_ROUNDS = process.env.SALT_ROUNDS || '10'
+const { JWT_UA_ACCESS_KEY, JWT_EXPIRATION_TIME, SALT_ROUNDS } = process.env
+const PORT = process.env.PORT || 6001
 
 const appServer = express()
 appServer.use(express.json())
