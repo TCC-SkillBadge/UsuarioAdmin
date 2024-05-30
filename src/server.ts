@@ -7,7 +7,7 @@ import { UA, CodigoValidacao } from './UsuarioAdministrativo.DAOclass.js'
 import { SenhaIncorreta, ServicoIndisponivel, UsuarioAdministrativoNaoEncontrado, CodigoInvalido, AdminNaoAceito, ViolacaoUnique } from './ErrorList.js'
 
 dotenv.config()
-const { PORT_SERVICE, JWT_UA_ACCESS_KEY, JWT_EXPIRATION_TIME, SALT_ROUNDS } = process.env
+const { PORT, JWT_UA_ACCESS_KEY, JWT_EXPIRATION_TIME, SALT_ROUNDS } = process.env
 
 const appServer = express()
 appServer.use(express.json())
@@ -185,4 +185,4 @@ appServer.post('/aceitar-admin', async (req: any, res: any) => {
     }
 })
 
-appServer.listen(PORT_SERVICE, () => console.log(`Usuário Administrativo. Executando Porta ${PORT_SERVICE}`))
+appServer.listen(PORT, () => console.log(`Usuário Administrativo. Executando Porta ${PORT}`))
