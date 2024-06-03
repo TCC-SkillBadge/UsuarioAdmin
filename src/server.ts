@@ -4,7 +4,17 @@ import cors from 'cors'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import { UA, CodigoValidacao } from './UsuarioAdministrativo.DAOclass.js'
-import { SenhaIncorreta, ServicoIndisponivel, UsuarioAdministrativoNaoEncontrado, CodigoInvalido, AdminNaoAceito, ViolacaoUnique } from './ErrorList.js'
+import { 
+    SenhaIncorreta,
+    ServicoIndisponivel,
+    UsuarioAdministrativoNaoEncontrado,
+    CodigoInvalido,
+    AdminNaoAceito,
+    ViolacaoUnique,
+    TokenNaoFornecido,
+    TokenExpirado,
+    TokenInvalido 
+} from './ErrorList.js'
 
 const appServer = express()
 appServer.use(express.json())
@@ -21,33 +31,26 @@ const verificaAceitacaoAdmin = async (req: any, res: any, next: any) => {
     const { email_admin, codigo_validacao } = req.body
     try{
         const codigoValidacao = await CodigoValidacao.findByPk(email_admin)
-        console.log(codigoValidacao)
         if(codigoValidacao){
             const codigoValidacaoCorreto = await bcrypt.compare(codigo_validacao, codigoValidacao.getDataValue('codigo_validacao'))
-            if(codigoValidacaoCorreto){
-                next()
-            }
-            else{
-                res.status(401).send(new CodigoInvalido())
-                return
-            }
+            if(codigoValidacaoCorreto) next()
+            else res.status(409).send(new CodigoInvalido())
         }
         else{
             res.status(404).send(new AdminNaoAceito())
-            return
         }
     }
     catch(err){
         console.error("Erro na operação 'VerificaAceitacaoAdmin' no serviço de Usuários Administrativos", err)
-        res.send(err)
-        return
+        res.status(503).send(new ServicoIndisponivel())
     }
 }
 
 const verificaToken = (req: any, res: any, next: any) => {
     const token = req.headers.authorization?.split(' ')
     if(!token){
-        return res.status(401).send('Token não fornecido')
+        res.status(400).send(new TokenNaoFornecido())
+        return
     }
     let chave: string | undefined
     switch(req.query.tipoUsuario){
@@ -57,49 +60,47 @@ const verificaToken = (req: any, res: any, next: any) => {
     }
     jwt.verify(token[1], chave!, (err: any, result: any) => {
         if(err){
-            return res.status(403).send('Token Inválido')
+            console.error("Erro na verificação do Token", err)
+            switch(err.name){
+                case 'TokenExpiredError':
+                    res.status(401).send(new TokenExpirado())
+                    return
+                case 'JsonWebTokenError':
+                    res.status(401).send(new TokenInvalido())
+                    return
+            }
         }
         req.usuario = result.usuario
-        next()
+        next() 
     })
-
 }
 
 appServer.post('/cadastrar', verificaAceitacaoAdmin, async (req: any, res: any) => {
     console.log("Requisição de Cadastro de Usuário Administrativo")
     const { email_admin, senha, nome_admin, cargo } = req.body
-    try{
-        let senhaHash: any, sucesso = false
-        while(!sucesso){
-            try{
-                senhaHash = await bcrypt.hash(senha, +SALT_ROUNDS!)
-                sucesso = true
-            }
-            catch(err){
-                console.error("Erro no bcrypt.hash()", err)
-            }
-        }
+    let senhaHash: any, sucesso = false
+    while(!sucesso){
         try{
-            const novoUA = await UA.create({ email_admin, senha: senhaHash, nome_admin, cargo})
-            if(novoUA){
-                res.status(201).send('Usuário Administrativo Cadastrado com Sucesso')
-            }
-            else{
-                res.status(503).send(new ServicoIndisponivel())
-            }
+            senhaHash = await bcrypt.hash(senha, +SALT_ROUNDS!)
+            sucesso = true
         }
-        catch(err: any){
-            console.error("Erro no UA.create()", err)
-            switch(err.errors[0].type){
-                case 'unique violation':
-                    res.status(409).send(new ViolacaoUnique())
-                    break
-            }
+        catch(err){
+            console.error("Erro no bcrypt.hash()", err)
         }
     }
-    catch(err){
-        console.error("Erro na operação 'Cadastrar' no serviço de Usuários Administrativos", err)
-        return res.send(err)
+    try{
+        await UA.create({ email_admin, senha: senhaHash, nome_admin, cargo})
+        res.status(201).send({ message: 'Usuário Administrativo Cadastrado com Sucesso' })
+    }
+    catch(err: any){
+        console.error("Erro no UA.create()", err)
+        switch(err.errors[0].type){
+            case 'unique violation':
+                res.status(409).send(new ViolacaoUnique())
+                break
+            default:
+                res.status(503).send(new ServicoIndisponivel())
+        }
     }
 })
 
@@ -132,7 +133,7 @@ appServer.get('/login', async (req: any, res: any) => {
     }
     catch(err){
         console.error("Erro na operação 'Login' no serviço de Usuários Administrativos", err)
-        res.send(err)
+        res.status(503).send(new ServicoIndisponivel())
     }
 })
 
@@ -148,40 +149,35 @@ appServer.get('/acessa-info', verificaToken, async (req: any, res: any) => {
     }
     catch(err){
         console.error("Erro na operação 'AcessaInfo' no serviço de Usuários Administrativos", err)
-        res.send(err)
+        res.status(503).send(new ServicoIndisponivel())
     }
 })
 
 appServer.post('/aceitar-admin', async (req: any, res: any) => {
     const { email_admin, codigo_validacao } = req.body
-    try{
-        let codigoHash: any, sucesso = false
-        while(!sucesso){
-            try{
-                codigoHash = await bcrypt.hash(codigo_validacao, +SALT_ROUNDS!)
-                sucesso = true
-            }
-            catch(err){
-                console.error("Erro no bcrypt.hash()", err)
-            }
-        }
+    let codigoHash: any, sucesso = false
+    while(!sucesso){
         try{
-            const novoCodigo = await CodigoValidacao.create({ email_admin, codigo_validacao: codigoHash })
-            if(novoCodigo){
-                res.status(201).send('Código de Validação para Admin Criado com Sucesso')
-            }
-            else{
-                res.status(503).send(new ServicoIndisponivel())
-            }
+            codigoHash = await bcrypt.hash(codigo_validacao, +SALT_ROUNDS!)
+            sucesso = true
         }
         catch(err){
-            console.error("Erro no CodigoValidacao.create()", err)
-            res.send(err)
+            console.error("Erro no bcrypt.hash()", err)
         }
     }
-    catch(err){
-        console.error("Erro na operação 'Aceitar Admin' no serviço de Usuários Administrativos", err)
-        res.send(err)
+    try{
+        await CodigoValidacao.create({ email_admin, codigo_validacao: codigoHash })
+        res.status(201).send('Código de Validação para Admin Criado com Sucesso')
+    }
+    catch(err: any){
+        console.error("Erro no CodigoValidacao.create()", err)
+        switch(err.errors[0].type){
+            case 'unique violation':
+                res.status(409).send(new ViolacaoUnique())
+                break
+            default:
+                res.status(503).send(new ServicoIndisponivel())
+        }
     }
 })
 
